@@ -1,0 +1,1 @@
+INFO:root:Connection to URI mongodb://draupreader:fqp6hf9DzFMvLRaN@mongo-arbiter-harvestor.draup.technology:27017,mongodb-harvestor.draup.technology:27017,mongodb1-harvestor.draup.technology:27017,mongodb2-harvestor.draup.technology:27017/admin?replicaSet=draup-atlas-harvestor-replica-set&readPreference=primary successful
