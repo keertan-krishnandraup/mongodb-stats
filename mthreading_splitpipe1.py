@@ -40,44 +40,39 @@ except ConnectionError as ce:
 harvests_db = client['harvests']
 
 
-def pop_queue(cqueue):
+def pop_queue_t3(cqueue):
     coll_list = list(harvests_db.list_collection_names())
     for i in coll_list:
         #x = coll_entry(i)
         cqueue.put(i)
 
 
-def pop_queue_and_limit(cqueue, lim):
-    coll_list = list(harvests_db.list_collection_names())
-    for i in coll_list:
-        docs = harvests_db[i].find().limit(int(lim))#sort({'_id':-1})#.limit(int(lim))
-        print(len(list(docs)))
-        for j in docs:
-            cqueue.put(j)
-
-def sort_and_limit_stage(cqueue_in,cqueue_out):
-    stop_flag = 0
+def sort_and_limit(cqueue_in,cqueue_out):
     stage_pipe = [{'$sort': {'_id': -1}},
-                  {'$limit': 50}]
-    while(stop_flag != 1):
-        coll_name = cqueue_in.get(block = True, timeout = 2)
+                  {'$limit': 2}]
+    while(not cqueue_in.empty()):
+        coll_name = cqueue_in.get(block = True, timeout = 3)
         while not coll_name:
-            coll_name = cqueue_in.get(block=True, timeout=2)
+            coll_name = cqueue_in.get(block = True, timeout = 3)
         res = list(harvests_db[coll_name].aggregate(stage_pipe))
-        cqueue_out.put(tuple(coll_name:res))
+        #pprint(res)
+        for i in res:
+            cqueue_out.put([coll_name, i])
+
+
 
 def project1_stage(cqueue_in,cqueue_out):
     stop_flag = 0
     stage_pipe = [{'$project': {'_id': '$_id', 'convDate': {'$toDate': "$_id"}}}]
-    while (stop_flag != 1):
+    while (not cqueue_in.empty()):
         obj = cqueue_in.get(block=True, timeout=2)
         while not obj:
             obj = cqueue_in.get(block=True, timeout=2)
         coll_name = obj[0]
-        obj_list = obj[1]
-        for i in
+        doc = obj[1]
         res = list(harvests_db[coll_name].aggregate(stage_pipe))
-        cqueue_out.put(tuple(coll_name: res))
+        print(res)
+        cqueue_out.put([coll_name, res])
 
 def project2_stage():
     pass
@@ -88,10 +83,12 @@ def match_stage():
 def bucket_stage():
     pass
 
-def stage_execute(cqueue,n,fn_name):
+def stage_execute(cqueue_in,cqueue_out,n,fn_name):
+
     with ThreadPoolExecutor(max_workers=n) as executor:
-        q_len = cqueue.qsize()
-        futures = {executor.submit(fn_name, cqueue):i for i in range(q_len)}
+        q_len = cqueue_in.qsize()
+        futures = {executor.submit(fn_name, cqueue_in,cqueue_out):i for i in range(q_len)}
+        print(len(futures))
         for future in as_completed(futures):
             name = futures[future]
             try:
@@ -150,7 +147,7 @@ def get_stats_q(cqueue):
         return 1
 
 stage_dict = {
-    1:sort_and_limit_stage,
+    1:sort_and_limit,
     2:project1_stage,
     3:project2_stage,
     4:match_stage,
@@ -158,9 +155,16 @@ stage_dict = {
 }
 
 
+
 if __name__=='__main__':
     start = time.time()
-    pop_queue(coll_queue1)
+    pop_queue_t3(coll_queue1)
+    curr_stage = 1
+    stage_execute(coll_queue1, coll_queue2, 100, stage_dict[curr_stage])
+    curr_stage += 1
+    stage_execute(coll_queue2, coll_queue3, 100, stage_dict[curr_stage])
+    #sort_and_limit(coll_queue1,coll_queue2,50)
+    pprint(coll_queue3.qsize())
     #pool_execute(coll_queue,500)
     end = time.time()
     print(end - start, ' seconds')

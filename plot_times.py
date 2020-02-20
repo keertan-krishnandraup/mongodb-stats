@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import json
 def plot_times(f_names):
+     plt.figure(figsize=(16,16))
      for i in f_names:
 
           times_list = list(json.loads(open(i).read()))
@@ -12,7 +13,7 @@ def plot_times(f_names):
           print(threads)
           #x = pd.DataFrame(list(zip(threads, times)), columns=['No. of Threads', 'Execution Time'])
           #plot = x.plot(figsize=(16, 16), x='No. of Threads', y='Execution Time')
-          plt.plot(times,threads,label=i)
+          plt.plot(threads,times,label=i)
           plt.legend(i)
      #times_series.plot()
      plt.title('Multi-Threading Approaches')
@@ -21,4 +22,4 @@ def plot_times(f_names):
      plt.show()
 
 if __name__=='__main__':
-    plot_times(['times_mt_ap1.json','times_mt_ap2.json'])
+    plot_times(['times_mt_ap1.json','times_mt_ap2.json', 'times_mp_ap1.json', 'times_mp_ap2.json'])

@@ -6,7 +6,7 @@ import os
 from pymongo import MongoClient
 import time
 x = multiprocessing.Queue()
-PROCESSES = os.cpu_count() -1
+PROCESSES = 200
 #Mastering concurrency in Python
 uri='mongodb://draupreader:fqp6hf9DzFMvLRaN@mongo-arbiter-harvestor.draup.technology:27017,mongodb-harvestor.draup.' \
     'technology:27017,mongodb1-harvestor.draup.technology:27017,mongodb2-harvestor.draup.technology:27017/admin?' \
@@ -25,16 +25,26 @@ harvests_db = client['harvests']
 
 processes = []
 
-def pop_queue(cqueue):
-    coll_list = list(harvests_db.list_collection_names())
+def pop_queue(cqueue, refresh):
+    if (refresh == 1):
+        coll_list = harvests_db.list_collection_names()
+    else:
+        coll_list = []
+        f = open('coll_subset.json')
+        all_colls = json.loads(f.read())
+        for i in list(all_colls.keys()):
+            if (all_colls[i] == 1):
+                coll_list.append(i)
+    print(coll_list)
     for i in coll_list:
         cqueue.put(i)
+    print(cqueue.qsize())
     return cqueue
 
 def get_stats_q(cqueue):
     local_client = MongoClient()
     stats_db = local_client['stats_processing']
-    stats_coll = stats_db['stats_coll1']
+    stats_coll = stats_db['stats_coll']
     pipeline = [{'$sort': {'_id': -1}},
                 {'$limit': 50},
                 {'$project': {'_id': '$_id', 'convDate': {'$toDate': "$_id"}}},
@@ -56,7 +66,12 @@ def get_stats_q(cqueue):
         coll_name = cqueue.get(block=True,timeout=4)
         while not coll_name:
             coll_name = cqueue.get(block=True, timeout=4)
-        res = list(harvests_db[coll_name].aggregate(pipeline))
+        try:
+            res = list(harvests_db[coll_name].aggregate(pipeline))
+        except Exception as exc:
+            print('Exception')
+            logging.error(exc)
+            pass
         print(res)
         coll_stats = []
         if (not res):
@@ -83,7 +98,7 @@ def get_stats_q(cqueue):
 def run():
     empty_queue = multiprocessing.Queue()
     #print(empty_queue)
-    full_queue = pop_queue(empty_queue)
+    full_queue = pop_queue(empty_queue, 1)
     print(full_queue.qsize())
     processes = []
     print(f'Running with {PROCESSES} processes')

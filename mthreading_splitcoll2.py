@@ -40,20 +40,29 @@ harvests_db = client['harvests']
 
 
 
-def pop_queue(cqueue):
-    coll_list = list(harvests_db.list_collection_names())
+def pop_queue_mt2(cqueue, refresh):
+    if (refresh == 1):
+        coll_list = harvests_db.list_collection_names()
+    else:
+        coll_list = []
+        f = open('coll_subset.json')
+        all_colls = json.loads(f.read())
+        for i in list(all_colls.keys()):
+            if (all_colls[i] == 1):
+                coll_list.append(i)
+    print(coll_list)
     for i in coll_list:
-        #x = coll_entry(i)
         cqueue.put(i)
+    print(cqueue.qsize())
 
 def thread_execute(cqueue, num_threads):
     for i in range(num_threads):
-        worker = Thread(target=get_stats_q, args=(cqueue,))
+        worker = Thread(target=get_stats_t2, args=(cqueue,))
         worker.setDaemon(True)
         worker.start()
         threads.append(worker)
 
-def get_stats_q(cqueue):
+def get_stats_t2(cqueue):
     pipeline = [{'$sort': {'_id': -1}},
                 {'$limit': 50},
                 {'$project': {'_id': '$_id', 'convDate': {'$toDate': "$_id"}}},
@@ -73,7 +82,12 @@ def get_stats_q(cqueue):
         coll_name = cqueue.get(block=True,timeout=4)
         if coll_name is None:
             break
-        res = list(harvests_db[coll_name].aggregate(pipeline))
+        try:
+            res = list(harvests_db[coll_name].aggregate(pipeline))
+        except Exception as exc:
+            print('Exception')
+            logging.error(exc)
+            pass
         #print(res)
         coll_stats = []
         if (not res):
@@ -107,17 +121,15 @@ def wait(cqueue,threads):
     for t in threads:
         t.join()
 
-if __name__=='__main__':
+def mthreading_stats2():
     num_threads = 500
-    start = time.time()
-
-
-
-    pop_queue(coll_queue)
+    pop_queue_mt2(coll_queue, 1)
     thread_execute(coll_queue, num_threads)
-    #?
-    wait(coll_queue,threads)
+    wait(coll_queue, threads)
 
+if __name__=='__main__':
+    start = time.time()
+    mthreading_stats2()
     end = time.time()
     print(end - start, ' seconds')
 
